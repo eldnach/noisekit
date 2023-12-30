@@ -1,10 +1,10 @@
 {
   "name": "com.eldnach.noisekit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "NoiseKit",
-"description": "Quick procedural noise generation and baking in the editor.\nChoose from available noise types, edit noise properties and visualize in a realtime viewport, perform channel packing and export as textures.",
-  "unity": "2021.3",
-  "unityRelease": "14f1",
+"description": "Procedural generation of tileable volumetric textures in the Unity Editor. Choose from available noise types, edit noise properties, perform channel packing and export as 3D/2D textures.",
+  "unity": "2022.3",
+  "unityRelease": "16f1",
   "documentationUrl": "https://github.com/eldnach/noisekit/blob/main/README.md",
   "licensesUrl": "https://github.com/eldnach/noisekit/blob/main/LICENSE",
   "dependencies": {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using UnityEngine.Rendering;
 using UnityEditor.UIElements;
 using System;
 
@@ -16,6 +17,7 @@ public class NoiseKitEditor : EditorWindow
     int resZ = 1;
 
     Material BlitMat;
+    private LocalKeyword _NoiseMode3D;
 
     // Templates
     static VisualTreeAsset NoiseEditorTemplate;
@@ -25,6 +27,9 @@ public class NoiseKitEditor : EditorWindow
     static VisualTreeAsset PropertyTemplate;
     static VisualTreeAsset ChannelToggle;
     static VisualTreeAsset Message;
+
+    // Noise Mode
+    DropdownField NoiseMode;
 
     // Noise Selection
     VisualElement SelectedNoiseList;
@@ -153,7 +158,7 @@ public class NoiseKitEditor : EditorWindow
 
     }
 
-    [MenuItem("Window/NoiseKit/Open _%#N")] // ctrl-shft-N
+    [MenuItem("Window/NoiseKit/Open")] 
     public static void ShowWindow()
     {
         NoiseKitEditor wnd = GetWindow<NoiseKitEditor>();
@@ -174,6 +179,9 @@ public class NoiseKitEditor : EditorWindow
     }
     void QueryElements()
     {
+        // Noise Mode
+        NoiseMode = NoiseEditor.Q<DropdownField>("ModeDropdown");
+
         // Noise Selection
         SelectedNoiseList = NoiseEditor.Q<VisualElement>("SelectedNoiseList");
         AddNoiseButton = NoiseEditor.Q<Button>("AddNoiseButton");
@@ -201,6 +209,7 @@ public class NoiseKitEditor : EditorWindow
         InputResFields.Add(NoiseResX);
         InputResFields.Add(NoiseResY);
         InputResFields.Add(NoiseResZ);
+        NoiseResZ.visible = false;
 
         // Noise Export
         BitDepth = NoiseEditor.Q<DropdownField>("BitDepthDropdown");
@@ -211,6 +220,7 @@ public class NoiseKitEditor : EditorWindow
         ConsoleView = NoiseEditor.Q<ScrollView>("ConsoleView");
     }
 
+    List<string> modes;
     int nodeCount;
     List<Node> nodeList;
     List<string> outputs;
@@ -229,6 +239,12 @@ public class NoiseKitEditor : EditorWindow
 
         Shader blitShader = (Shader)AssetDatabase.LoadAssetAtPath("Packages/com.eldnach.noisekit/Editor/Resources/NoiseKitBlit.shader", typeof(Shader));
         BlitMat = new Material(blitShader);
+        _NoiseMode3D = new LocalKeyword(BlitMat.shader, "_NOISEMODE3D");
+
+        NoiseKitUtil.mode = 0;
+        modes = new List<string>();
+        modes.Add("2D Noise Editor");
+        modes.Add("3D Noise Editor");
 
         nodeCount = 0;
         nodeList = new List<Node>();
@@ -250,15 +266,19 @@ public class NoiseKitEditor : EditorWindow
         precisions.Add("8 Bit Per Channel");
         precisions.Add("16 Bit Per Channel");
 
-        ng = new NoiseGenerator(resX, resY);
+        ng = new NoiseGenerator(resX, resY, resZ);
         canvasRT = new RenderTexture(resX, resX, resY, rtFormat, colorSpace);
 
         // UI Setup
         NoiseEditor = NoiseEditorTemplate.Instantiate();
         QueryElements();
+        NoiseMode.choices = modes;
+        NoiseMode.index = 0;
+        NoiseMode.RegisterValueChangedCallback(UpdateMode);
 
         AddNoiseButton.RegisterCallback<MouseUpEvent>(AddNoiseSelection);
         RemoveNoiseButton.RegisterCallback<MouseUpEvent>(RemoveNoiseSelection);
+        RemoveNoiseButton.style.opacity = 0.5f;
 
         node.InstantiateEditor(NoiseEditorList, SelectedNoiseList);
         node.editorCurve.RegisterValueChangedCallback(UpdateCurveValue);
@@ -303,7 +323,7 @@ public class NoiseKitEditor : EditorWindow
         // Resolution Settings
         NoiseResX.value = resX.ToString();
         NoiseResY.value = resY.ToString();
-        //NoiseResZ.value = resZ.ToString();
+        NoiseResZ.value = resZ.ToString();
         UpdateResolutionButton.RegisterCallback<PointerUpEvent, List<TextField>>(UpdateRes, InputResFields);
 
         // File Settings
@@ -359,12 +379,9 @@ public class NoiseKitEditor : EditorWindow
         // Compute Setup and Dispatch
         ng.SetupNodes(GetActiveNodes());
         GenerateShader();
-        ng.SetupCompute();
+        ng.SetupCompute(resX, resY, resZ);
         ng.DispatchCompute();
         UpdateCanvas();
-        
-
-
     }
     private List<NoiseKitUtil.Node> GetActiveNodes()
     {
@@ -392,34 +409,46 @@ public class NoiseKitEditor : EditorWindow
 
         ng.SetupNodes(GetActiveNodes());
         GenerateShader();
-        ng.SetupCompute();
+        ng.SetupCompute(resX, resY, resZ);
         ng.DispatchCompute();
 
         UpdateCanvas();
+
+        if (nodeList.Count > 1)
+        {
+            RemoveNoiseButton.style.opacity = 1.0f;
+        }
     }
     private void RemoveNoiseSelection(MouseUpEvent evt)
     {
-        nodeList.RemoveAt(nodeCount -1);
-        nodeCount--;
-
-        NoiseEditorList.Clear();
-        SelectedNoiseList.Clear();
-        for (int i=0; i<nodeList.Count; i++)
+        if (nodeList.Count > 1)
         {
-            nodeList[i].InstantiateEditor(NoiseEditorList, SelectedNoiseList);
-        }
+            nodeList.RemoveAt(nodeCount - 1);
+            nodeCount--;
 
-        UpdateNoiseEditors();
-        UpdateOutputs();
-        UpdateChannelFields();
+            if (nodeList.Count < 2)
+            {
+                RemoveNoiseButton.style.opacity = 0.5f;
+            }
 
-        ng.SetupNodes(GetActiveNodes());
-        GenerateShader();
-        ng.SetupCompute();
-        ng.DispatchCompute();
+            NoiseEditorList.Clear();
+            SelectedNoiseList.Clear();
+            for (int i = 0; i < nodeList.Count; i++)
+            {
+                nodeList[i].InstantiateEditor(NoiseEditorList, SelectedNoiseList);
+            }
 
-        UpdateCanvas();
+            UpdateNoiseEditors();
+            UpdateOutputs();
+            UpdateChannelFields();
 
+            ng.SetupNodes(GetActiveNodes());
+            GenerateShader();
+            ng.SetupCompute(resX, resY, resZ);
+            ng.DispatchCompute();
+
+            UpdateCanvas();
+        } 
     }
     private void AddNoiseChannel(MouseUpEvent evt)
     {
@@ -456,6 +485,7 @@ public class NoiseKitEditor : EditorWindow
             UpdateTextureFormat();
             canvasRT = new RenderTexture(resX, resY, resZ, rtFormat, colorSpace);
             ng.UpdateRT(resX, resY, resZ, rtFormat, colorSpace);
+            ng.SetupCompute(resX, resY, resZ);
             ng.DispatchCompute();
             UpdateCanvas();
         }
@@ -471,6 +501,7 @@ public class NoiseKitEditor : EditorWindow
             UpdateTextureFormat();
             canvasRT = new RenderTexture(resX, resY, resZ, rtFormat, colorSpace);
             ng.UpdateRT(resX, resY, resZ, rtFormat, colorSpace);
+            ng.SetupCompute(resX, resY, resZ);
             ng.DispatchCompute();
             UpdateCanvas();
         }
@@ -495,11 +526,21 @@ public class NoiseKitEditor : EditorWindow
         BlitMat.SetFloat("_Green", ChannelsActive[1] ? 1.0f : 0.0f);
         BlitMat.SetFloat("_Blue", ChannelsActive[2] ? 1.0f : 0.0f);
         BlitMat.SetFloat("_Alpha", ChannelsActive[3] ? 1.0f : 0.0f);
+
+        if (NoiseMode.index == 0)
+        {
+            BlitMat.SetTexture("_NoiseTex", ng.GetTex());
+        } else
+        {
+            BlitMat.EnableKeyword(_NoiseMode3D);
+            BlitMat.SetTexture("_NoiseTex3D", ng.GetTex());
+        }
         RenderTexture previousActiveRT = RenderTexture.active;
-        Graphics.Blit(ng.GetTex(), canvasRT, BlitMat);
+        Graphics.Blit(null, canvasRT, BlitMat);
         RenderTexture.active = previousActiveRT;
         canvasImage.image = canvasRT;
     }
+
     private void UpdateNodeTypes(ChangeEvent<string> evt)
     {
         for (int i= 0; i < nodeList.Count; i++)
@@ -511,7 +552,7 @@ public class NoiseKitEditor : EditorWindow
 
         ng.SetupNodes(GetActiveNodes());
         GenerateShader();
-        ng.SetupCompute();
+        ng.SetupCompute(resX, resY, resZ);
         ng.DispatchCompute();
 
         UpdateCanvas();
@@ -556,7 +597,7 @@ public class NoiseKitEditor : EditorWindow
     private void UpdateOutputsSelection(ChangeEvent<string> evt)
     {
         GenerateShader();
-        ng.SetupCompute();
+        ng.SetupCompute(resX, resY, resZ);
         UpdateProperties();
         ng.DispatchCompute();
         UpdateCanvas();
@@ -604,9 +645,22 @@ public class NoiseKitEditor : EditorWindow
             if (resY % 8 != 0) { resY = (int)(Mathf.Floor((float)resY / 8.0f) * 8.0f); inputRes[1].value = resY.ToString(); }
         }
         else { resY = 8; inputRes[1].value = resY.ToString(); }
-        resZ = 1;
+
+        if(NoiseMode.index == 1)
+        {
+            resZ = Int32.Parse(inputRes[2].value);
+            if (resZ > 8)
+            {
+                if (resZ % 8 != 0) { resZ = (int)(Mathf.Floor((float)resZ / 8.0f) * 8.0f); inputRes[2].value = resZ.ToString(); }
+            }
+            else { resZ = 8; inputRes[2].value = resZ.ToString(); }
+        } else
+        {
+            resZ = 1;
+        }
         canvasRT = new RenderTexture(resX, resY, resZ, rtFormat, colorSpace);
         ng.UpdateRT(resX, resY, resZ, rtFormat, colorSpace);
+        ng.SetupCompute(resX, resY, resZ);
         ng.DispatchCompute();
         UpdateCanvas();
     }
@@ -622,25 +676,32 @@ public class NoiseKitEditor : EditorWindow
         string srcIncludes = "";
 
         srcIncludes = "#include \"Packages/com.eldnach.noisekit/Editor/Resources/NoiseKit.hlsl\" \n";
-        srcPragma = "#pragma kernel NoiseKernel \n";
-        if (channelCount == 1) { srcTarget = "RWTexture2D<float> _outputTex; \n".Replace("\n", Environment.NewLine); }
-        else if (channelCount == 2) { srcTarget = "RWTexture2D<float2> _outputTex; \n".Replace("\n", Environment.NewLine); }
-        else if (channelCount == 3) { srcTarget = "RWTexture2D<float3> _outputTex; \n".Replace("\n", Environment.NewLine); }
-        else if (channelCount == 4) { srcTarget = "RWTexture2D<float4> _outputTex; \n".Replace("\n", Environment.NewLine); }
-        
-        for(int i=0; i<nodeList.Count; i++)
+        srcPragma = "#pragma kernel NoiseKernel2D \n";
+        srcPragma += "#pragma kernel NoiseKernel3D \n";
+
+        if (channelCount == 1) { srcTarget = "RWTexture2D<float> _outputTex2D; \n".Replace("\n", Environment.NewLine); }
+        else if (channelCount == 2) { srcTarget = "RWTexture2D<float2> _outputTex2D; \n".Replace("\n", Environment.NewLine); }
+        else if (channelCount == 3) { srcTarget = "RWTexture2D<float3> _outputTex2D; \n".Replace("\n", Environment.NewLine); }
+        else if (channelCount == 4) { srcTarget = "RWTexture2D<float4> _outputTex2D; \n".Replace("\n", Environment.NewLine); }
+
+        if (channelCount == 1) { srcTarget += "RWTexture3D<float> _outputTex3D; \n".Replace("\n", Environment.NewLine); }
+        else if (channelCount == 2) { srcTarget += "RWTexture3D<float2> _outputTex3D; \n".Replace("\n", Environment.NewLine); }
+        else if (channelCount == 3) { srcTarget += "RWTexture3D<float3> _outputTex3D; \n".Replace("\n", Environment.NewLine); }
+        else if (channelCount == 4) { srcTarget += "RWTexture3D<float4> _outputTex3D; \n".Replace("\n", Environment.NewLine); }
+
+        for (int i=0; i<nodeList.Count; i++)
         {
             srcProps += "StructuredBuffer<float> _propsBuffer" + i.ToString() + ";\n".Replace("\n", Environment.NewLine);
             srcCurves += "StructuredBuffer<float> _curveBuffer" + i.ToString() + ";\n".Replace("\n", Environment.NewLine);
         }
         srcRes = "float4 _res; \n".Replace("\n", Environment.NewLine);
 
-        srcKernel = "[numthreads(8,8,1)] \nvoid NoiseKernel (uint3 id : SV_DispatchThreadID) \n{ \nfloat2 uv = id.xy / _res.xy; \n".Replace("\n", Environment.NewLine);
+        srcKernel = "[numthreads(8,8,1)] \nvoid NoiseKernel2D (uint3 id : SV_DispatchThreadID) \n{ \nfloat2 uv = id.xy / _res.xy; \n".Replace("\n", Environment.NewLine);
         for (int i = 0; i < ng.nodeList.Count; i++)
         {
-            for (int k = 0; k < ng.nodeList[i].source.Count; k++)
+            for (int k = 0; k < ng.nodeList[i].source2D.Count; k++)
             {
-                srcKernel += ng.nodeList[i].source[k].Replace("$", nodeList[i].GetOutputName()).Replace("#", i.ToString()).Replace("\n", Environment.NewLine);
+                srcKernel += ng.nodeList[i].source2D[k].Replace("$", nodeList[i].GetOutputName()).Replace("#", i.ToString()).Replace("\n", Environment.NewLine);
             }
         }
         srcKernel += "float r = " + NoiseChannels[0].value + ";\n".Replace("\n", Environment.NewLine);
@@ -648,7 +709,22 @@ public class NoiseKitEditor : EditorWindow
         if (channelCount > 1) { srcKernel += "float g = " + NoiseChannels[1].value + ";\n".Replace("\n", Environment.NewLine); channels = "float2(r, g)"; }
         if (channelCount > 2) { srcKernel += "float b = " + NoiseChannels[2].value + ";\n".Replace("\n", Environment.NewLine); channels = "float3(r, g, b)"; }
         if (channelCount > 3) { srcKernel += "float a = " + NoiseChannels[3].value + ";\n".Replace("\n", Environment.NewLine); channels = "float4(r, g, b, a)"; }
-        srcKernel += "_outputTex[id.xy] = " + channels + ";} \n".Replace("\n", Environment.NewLine);
+        srcKernel += "_outputTex2D[id.xy] = " + channels + ";} \n".Replace("\n", Environment.NewLine);
+
+        srcKernel += "[numthreads(8,8,8)] \nvoid NoiseKernel3D (uint3 id : SV_DispatchThreadID) \n{ \nfloat3 uv = id.xyz / _res.xyz; \n".Replace("\n", Environment.NewLine);
+        for (int i = 0; i < ng.nodeList.Count; i++)
+        {
+            for (int k = 0; k < ng.nodeList[i].source3D.Count; k++)
+            {
+                srcKernel += ng.nodeList[i].source3D[k].Replace("$", nodeList[i].GetOutputName()).Replace("#", i.ToString()).Replace("\n", Environment.NewLine);
+            }
+        }
+        srcKernel += "float r = " + NoiseChannels[0].value + ";\n".Replace("\n", Environment.NewLine);
+        channels = "r";
+        if (channelCount > 1) { srcKernel += "float g = " + NoiseChannels[1].value + ";\n".Replace("\n", Environment.NewLine); channels = "float2(r, g)"; }
+        if (channelCount > 2) { srcKernel += "float b = " + NoiseChannels[2].value + ";\n".Replace("\n", Environment.NewLine); channels = "float3(r, g, b)"; }
+        if (channelCount > 3) { srcKernel += "float a = " + NoiseChannels[3].value + ";\n".Replace("\n", Environment.NewLine); channels = "float4(r, g, b, a)"; }
+        srcKernel += "_outputTex3D[id.xyz] = " + channels + ";} \n".Replace("\n", Environment.NewLine);
 
         src = srcPragma + System.Environment.NewLine + srcIncludes + System.Environment.NewLine + srcTarget + System.Environment.NewLine + srcProps + System.Environment.NewLine + srcCurves + System.Environment.NewLine + System.Environment.NewLine + srcRes + System.Environment.NewLine + srcKernel;
         System.IO.File.WriteAllText("Packages/com.eldnach.noisekit/Editor/Resources/ComputeNoise.compute", src);
@@ -657,14 +733,46 @@ public class NoiseKitEditor : EditorWindow
         ng.computeShader = (ComputeShader)AssetDatabase.LoadAssetAtPath("Packages/com.eldnach.noisekit/Editor/Resources/ComputeNoise.compute", typeof(ComputeShader));
 
     }
+    private void UpdateMode(ChangeEvent<string> evt)
+    {
+        if (NoiseMode.index == 1)
+        {
+            NoiseResZ.visible = true;
+            NoiseKitUtil.mode = 1;
+            resX = 256;
+            NoiseResX.value = "256";
+            resY = 256;
+            NoiseResY.value = "256";
+            resZ = 256;
+            NoiseResZ.value = "256";
+        } else
+        {
+            NoiseResZ.visible = false;
+            NoiseKitUtil.mode = 0;
+            resX = 256;
+            NoiseResX.value = "256";
+            resY = 256;
+            NoiseResY.value = "256";
+            resZ = 1;
+            NoiseResZ.value = "1";
+        }
+        UpdateTextureFormat();
+        canvasRT = new RenderTexture(resX, resY, resZ, rtFormat, colorSpace);
+        ng.UpdateRT(resX, resY, resZ, rtFormat, colorSpace);
+        ng.SetupCompute(resX, resY, resZ);
+        ng.DispatchCompute();
+        UpdateCanvas();
+    }
     private void UpdateFormat(ChangeEvent<string> evt)
     {
         UpdateTextureFormat();
         canvasRT = new RenderTexture(resX, resY, resZ, rtFormat, colorSpace);
         ng.UpdateRT(resX, resY, resZ, rtFormat, colorSpace);
+        ng.SetupCompute(resX, resY, resZ);
         ng.DispatchCompute();
         UpdateCanvas();
     }
+
     private void UpdateTextureFormat()
     {
         if (channelCount == 1)
@@ -718,15 +826,15 @@ public class NoiseKitEditor : EditorWindow
         if ( button.text == "R")
         {
             ChannelsActive[0] = !ChannelsActive[0];
-            if (ChannelsActive[0]) { button.style.opacity = 1; } else { button.style.opacity = 0.25f; }
+            if (ChannelsActive[0]) { button.style.opacity = 1; ChannelsActive[3] = false; ChannelToggles[3].style.opacity = 0.25f; } else { button.style.opacity = 0.25f; }
         } else if (button.text == "G")
         {
             ChannelsActive[1] = !ChannelsActive[1];
-            if (ChannelsActive[1]) { button.style.opacity = 1; } else { button.style.opacity = 0.25f; }
+            if (ChannelsActive[1]) { button.style.opacity = 1; ChannelsActive[3] = false; ChannelToggles[3].style.opacity = 0.25f; } else { button.style.opacity = 0.25f; }
         } else if (button.text == "B")
         {
             ChannelsActive[2] = !ChannelsActive[2];
-            if (ChannelsActive[2]) { button.style.opacity = 1; } else { button.style.opacity = 0.25f; }
+            if (ChannelsActive[2]) { button.style.opacity = 1; ChannelsActive[3] = false; ChannelToggles[3].style.opacity = 0.25f; } else { button.style.opacity = 0.25f; }
         } else if (button.text == "A")
         {
             ChannelsActive[3] = !ChannelsActive[3];
@@ -745,50 +853,146 @@ public class NoiseKitEditor : EditorWindow
         UpdateCanvas();
     }
 
-    Texture2D texRead;
-    Texture2D texTmp;
+    Texture2D texRead2D;
+    Texture3D texRead3D;
+    Texture2D texTmp2D;
+
+    struct r_b
+    {
+        byte r;
+    }
+    struct r_2b
+    {
+        ushort r;
+    }
+    struct rg_b
+    {
+        byte r;
+        byte g;
+    }
+    struct rg_2b
+    {
+        ushort r;
+        ushort g;
+    }
+    struct rgb_b
+    {
+        byte r;
+        byte g;
+        byte b;
+    }
+    struct rgb_2b
+    {
+        ushort r;
+        ushort g;
+        ushort b;
+    }
+    struct rgba_4b
+    {
+        byte r;
+        byte g;
+        byte b;
+        byte a;
+    }
+    struct rgba_8b
+    {
+        ushort r;
+        ushort g;
+        ushort b;
+        ushort a;
+    }
     private void SaveTex(PointerUpEvent cursorReleaseEvent, TextField input)
     {
         RenderTexture rt = ng.GetTex();
         bool usingLinearSpace;
-        if ( colorSpace  == RenderTextureReadWrite.sRGB ) { usingLinearSpace = false; } else { usingLinearSpace = true; texTmp = new Texture2D(rt.width, rt.height, format, usingLinearSpace); }
-        texRead = new Texture2D(rt.width, rt.height, format, usingLinearSpace);
-        RenderTexture previousActiveRT = RenderTexture.active;
-        RenderTexture.active = rt;
-        texRead.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); // copy data from active RT
-        if (BitDepth.index == 1)
-        {
-            for (int x = 0; x < resX; x++)
+        if (colorSpace == RenderTextureReadWrite.sRGB) { usingLinearSpace = false; } else 
+        { 
+            usingLinearSpace = true; 
+            if (NoiseKitUtil.mode == 0)
             {
-                for (int y = 0; y < resY; y++)
-                {
-                    Color col;
-                    col = texRead.GetPixel(x, y);
-                    texTmp.SetPixel(x, y, col.linear); // manual conversion from sRGB to linear is ineeded, even though RTs and tex are using linear space...   
-                }
+                texTmp2D = new Texture2D(rt.width, rt.height, format, usingLinearSpace);
             }
         }
-        byte[] texData;
-        string extension;
-        if (BitDepth.index == 0)
+
+        if (NoiseKitUtil.mode == 0)
         {
-            texData = texRead.EncodeToPNG();
-            extension = ".png";
-        } else 
+            texRead2D = new Texture2D(rt.width, rt.height, format, usingLinearSpace);
+            RenderTexture previousActiveRT = RenderTexture.active;
+            RenderTexture.active = rt;
+            texRead2D.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); // copy data from active RT
+            if (BitDepth.index == 1)
+            {
+                for (int x = 0; x < resX; x++)
+                {
+                    for (int y = 0; y < resY; y++)
+                    {
+                        Color col;
+                        col = texRead2D.GetPixel(x, y);
+                        texTmp2D.SetPixel(x, y, col.linear); // manual conversion from sRGB to linear is ineeded, even though RTs and tex are using linear space...   
+                    }
+                }
+            }
+            byte[] texData;
+            string extension;
+            if (BitDepth.index == 0)
+            {
+                texData = texRead2D.EncodeToPNG();
+                extension = ".png";
+            }
+            else
+            {
+                texData = texTmp2D.EncodeToEXR();
+                extension = ".exr";
+            }
+            RenderTexture.active = previousActiveRT;
+            string path = Application.dataPath + "/" + input.text + extension;
+            System.IO.FileInfo fileInfo = new System.IO.FileInfo(path);
+            fileInfo.Directory.Create();
+            System.IO.File.WriteAllBytes(fileInfo.FullName, texData);
+            AssetDatabase.Refresh();
+            Label log = Messages[0].Q<Label>("MessageLabel");
+            log.text = "NoiseKit: saved noise texture to " + path;
+        } else
         {
-            texData = texTmp.EncodeToEXR();
-            extension = ".exr";
+            int width = rt.width, height = rt.height, depth = rt.volumeDepth;
+            if (BitDepth.index == 0)
+            {
+                var data = new Unity.Collections.NativeArray<rgba_4b>(width * height * depth, Unity.Collections.Allocator.Persistent, Unity.Collections.NativeArrayOptions.UninitializedMemory);
+                UnityEngine.Rendering.AsyncGPUReadback.RequestIntoNativeArray(ref data, rt, 0, (_) =>
+                {
+                    texRead3D = new Texture3D(width, height, depth, format, 0);
+                    texRead3D.SetPixelData(data, 0);
+                    texRead3D.Apply();
+                    string path = input.text;
+                    AssetDatabase.CreateAsset(texRead3D, "Assets/" + path + ".asset");
+                    AssetDatabase.SaveAssetIfDirty(texRead3D);
+                    data.Dispose();
+                    rt.Release();
+                    AssetDatabase.Refresh();
+                    Label log = Messages[0].Q<Label>("MessageLabel");
+                    log.text = "NoiseKit: saved noise texture to " + path;
+                });
+            } else
+            {
+                var data = new Unity.Collections.NativeArray<rgba_8b>(width * height * depth, Unity.Collections.Allocator.Persistent, Unity.Collections.NativeArrayOptions.UninitializedMemory);
+                UnityEngine.Rendering.AsyncGPUReadback.RequestIntoNativeArray(ref data, rt, 0, (_) =>
+                {
+                    texRead3D = new Texture3D(width, height, depth, format, 0);
+                    texRead3D.SetPixelData(data, 0);
+                    texRead3D.Apply();
+                    string path = input.text;
+                    AssetDatabase.CreateAsset(texRead3D, "Assets/" + path + ".asset");
+                    AssetDatabase.SaveAssetIfDirty(texRead3D);
+                    data.Dispose();
+                    rt.Release();
+                    AssetDatabase.Refresh();
+                    Label log = Messages[0].Q<Label>("MessageLabel");
+                    log.text = "NoiseKit: saved noise texture to " + path;
+                });
+            }
+
+            
         }
-        RenderTexture.active = previousActiveRT;
-        string path = Application.dataPath + "/" + input.text + extension;
-
-        System.IO.FileInfo fileInfo = new System.IO.FileInfo(path);
-        fileInfo.Directory.Create();
-        System.IO.File.WriteAllBytes(fileInfo.FullName, texData);
-        AssetDatabase.Refresh();
-
-        Label log = Messages[0].Q<Label>("MessageLabel");
-        log.text = "NoiseKit: saved noise texture to " + path;
     }
 
 }

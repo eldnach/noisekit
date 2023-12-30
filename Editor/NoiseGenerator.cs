@@ -11,10 +11,11 @@ public class NoiseGenerator
     public int id;
 
     RenderTexture outputTex;
-    int outputTexUID;
+    RenderTexture outputTex3D;
+    int[] outputTexUID;
 
     public ComputeShader computeShader;
-    int kernelID;
+    int[] kernelUID;
 
     int wrkgrpCountX;
     int wrkgrpCountY;
@@ -53,9 +54,11 @@ public class NoiseGenerator
         }
     }
 
-    public NoiseGenerator(int resx, int resy)
+    public NoiseGenerator(int resx, int resy, int resz)
     {
-        res = new Vector4(resx, resy, 1, 1);
+        kernelUID = new int[2];
+        outputTexUID = new int[2];
+        res = new Vector4(resx, resy, resz, 1);
         nodeList = new List<NoiseKitUtil.Node>();
         propsList = new List<Property[]>();
         curveList = new List<Vector3>();
@@ -66,16 +69,13 @@ public class NoiseGenerator
         propsBuffer = new List<ComputeBuffer>();
         curveBuffer = new List<ComputeBuffer>();
 
-        res = new Vector4(res.x, res.y, 1, 1);
+        res = new Vector4(res.x, res.y, res.z, 1);
 
         #if UNITY_EDITOR
             Debug.Log("NoiseKit: Created Noise Generator");
         #endif
 
-        outputTex = new RenderTexture((int)res.x, (int)res.y, (int)res.z, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
-        outputTex.name = "NoiseEngine_RT";
-        outputTex.enableRandomWrite = true;
-        outputTex.Create();
+        UpdateRT((int)res.x, (int)res.y, (int)res.z, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
     }
 
     public void SetupNodes(List<NoiseKitUtil.Node> nodes)
@@ -86,13 +86,17 @@ public class NoiseGenerator
             nodeList.Add(nodes[i]);
         }
     }
-    public void SetupCompute()
+    public void SetupCompute(float resx, float resy, float resz)
     {
-        kernelID = computeShader.FindKernel("NoiseKernel");
+        res.x = resx;
+        res.y = resy;
+        res.z = resz;
+        kernelUID[0] = computeShader.FindKernel("NoiseKernel2D");
+        kernelUID[1] = computeShader.FindKernel("NoiseKernel3D");
         uint workgroupSizeX;
         uint workgroupSizeY;
         uint workgroupSizeZ;
-        computeShader.GetKernelThreadGroupSizes(kernelID, out workgroupSizeX, out workgroupSizeY, out workgroupSizeZ);
+        computeShader.GetKernelThreadGroupSizes(kernelUID[NoiseKitUtil.mode], out workgroupSizeX, out workgroupSizeY, out workgroupSizeZ);
 
         wrkgrpCountX = (int)(Mathf.Ceil((int)res.x / workgroupSizeX));
         wrkgrpCountY = (int)(Mathf.Ceil((int)res.y / workgroupSizeY));
@@ -111,7 +115,8 @@ public class NoiseGenerator
         }
 
         resUID = Shader.PropertyToID("_res");
-        outputTexUID = Shader.PropertyToID("_outputTex");
+        outputTexUID[0] = Shader.PropertyToID("_outputTex2D");
+        outputTexUID[1] = Shader.PropertyToID("_outputTex3D");
     }
 
     public void DispatchCompute()
@@ -121,15 +126,19 @@ public class NoiseGenerator
 
         for(int i = 0; i < nodeList.Count; i++)
         {
-            computeShader.SetBuffer(kernelID, propsBufferUID[i], propsBuffer[i]);
-            computeShader.SetBuffer(kernelID, curveBufferUID[i], curveBuffer[i]);
+            computeShader.SetBuffer(kernelUID[NoiseKitUtil.mode], propsBufferUID[i], propsBuffer[i]);
+            computeShader.SetBuffer(kernelUID[NoiseKitUtil.mode], curveBufferUID[i], curveBuffer[i]);
         }
 
         computeShader.SetVector(resUID, res);
-        computeShader.SetTexture(kernelID, outputTexUID, outputTex);
-    
-        computeShader.Dispatch(kernelID, wrkgrpCountX, wrkgrpCountY, wrkgrpCountZ);
-
+        if (NoiseKitUtil.mode == 0)
+        {
+            computeShader.SetTexture(kernelUID[NoiseKitUtil.mode], outputTexUID[NoiseKitUtil.mode], outputTex);
+        } else
+        {
+            computeShader.SetTexture(kernelUID[NoiseKitUtil.mode], outputTexUID[NoiseKitUtil.mode], outputTex3D);
+        }
+        computeShader.Dispatch(kernelUID[NoiseKitUtil.mode], wrkgrpCountX, wrkgrpCountY, wrkgrpCountZ);
     }
     
     void SetupProperties()
@@ -229,17 +238,39 @@ public class NoiseGenerator
 
     public void UpdateRT(int resx, int resy, int resz, RenderTextureFormat format, RenderTextureReadWrite colorspace)
     {
-        res = new Vector4(resx, resy, resz, 1);
+        res.x = resx;
+        res.y = resy;
+        res.z = resz;
         outputTex = new RenderTexture((int)res.x, (int)res.y, (int)res.z, format, colorspace);
         outputTex.name = "NoiseEngine_RT";
         outputTex.enableRandomWrite = true;
         outputTex.Create();
-        SetupCompute();
+
+        RenderTextureDescriptor rtDesc = new RenderTextureDescriptor((int)res.x, (int)res.y);
+        rtDesc.dimension = TextureDimension.Tex3D;
+        rtDesc.volumeDepth = (int)res.z;
+        rtDesc.colorFormat = format;
+        rtDesc.enableRandomWrite = true;
+        if (colorspace == RenderTextureReadWrite.sRGB)
+        {
+            rtDesc.sRGB = true;
+        } else
+        {
+            rtDesc.sRGB = false;
+        }
+        outputTex3D = new RenderTexture(rtDesc);
+        outputTex3D.Create();
     }
 
     public RenderTexture GetTex()
     {
-        return outputTex;
+        if (NoiseKitUtil.mode == 0)
+        {
+            return outputTex;
+        } else
+        {
+            return outputTex3D;
+        }
     }
     ~NoiseGenerator()
     {

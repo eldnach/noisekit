@@ -1,6 +1,6 @@
-# NoiseKit - Procedural Noise Generation and Baking
+# NoiseKit - Procedural Volumetric Texture Generation 
 
-Procedural generation and baking of tileable noise textures in the Unity Editor. Choose from available noise types, edit noise properties, perform channel packing and export as 2D textures.
+Procedural generation of tileable volumetric textures in the Unity Editor. Choose from available noise types, edit noise properties, perform channel packing and export as 3D/2D textures.
 
 <p align="center">
   <img width="100%" src="https://github.com/eldnach/noisekit/blob/main/.github/images/NoiseKit.gif?raw=true" alt="NoiseComposition">
@@ -25,6 +25,7 @@ The following noise types are currently supported:
 - Fractal Perlin
 
 ## Controls
+`Mode`: toggle between 2D and 3D noise generation.
 `Noise Selection`: add or remove noise instances, and set the desired noise type.  
 `Noise Editor`: control the available noise properties (per instance).  
 `Channels`: add or remove noise channels, and perform channel packing.  
@@ -35,6 +36,4 @@ The following noise types are currently supported:
   <img width="40%" src="https://github.com/eldnach/noisekit/blob/main/.github/images/Controls.png?raw=true" alt="NoiseControls">
 </p>
 
-## Pending...
-- Additional noise types
-- 3D noise support
+Additional noise types are pending.
