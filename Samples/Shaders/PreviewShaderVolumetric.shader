@@ -24,7 +24,7 @@ Shader "Unlit/PreviewShaderVoumetric"
 
             #include "UnityCG.cginc"
 
-            #define STEPS 512
+            #define STEPS 1024
             #define EPSILON 0.001f
 
             struct appdata
@@ -72,13 +72,16 @@ Shader "Unlit/PreviewShaderVoumetric"
 
                 float4 col = float4(0.0, 0.0, 0.0, 0.0);
                 float3 rayPos = fragWorldPos;
-
+                float a;
                 for (int i = 0; i < STEPS; i++) {
                     if (max(abs(rayPos.x), max(abs(rayPos.y), abs(rayPos.z))) < (_VolScale * 0.5) + EPSILON)
                     {
                         float4 sampl = _MainTex.Sample(sampler_MainTex, rayPos * float3(_MainTex_ST.x, _MainTex_ST.y, 1.0) + float3(_MainTex_ST.z, _MainTex_ST.w, 0.0) + float3(_Time.x * 5.0 , 0.0, 0.0));
                         sampl = min(sampl, float4(1.0, 1.0, 1.0, 1.0));
                         sampl.a *= _Alpha;
+                        a = abs(length(rayPos - float3(0.0, 0.0, 0.0)));
+                        a = smoothstep(0.0, 0.49, a);
+                        sampl.a *= 1.0 - max(0.0, min(1.0, a));
                         col = BlendUnder(col, sampl);
                         rayPos += rayDir * _StepSize;
                     }

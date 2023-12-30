@@ -302,7 +302,7 @@ public class NoiseKitEditor : EditorWindow
         NoiseChannelsList.Add(channelG);
         VisualElement channelB = NoiseChannelTemplate.Instantiate();
         DropdownField fieldB = channelB.Q<DropdownField>("ChannelField");
-        fieldB.label = "BlueChannel";
+        fieldB.label = "Blue Channel";
         NoiseChannels.Add(fieldB);
         NoiseChannelsList.Add(channelB);
         VisualElement channelA = NoiseChannelTemplate.Instantiate();
