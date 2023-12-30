@@ -3,11 +3,11 @@
 Procedural generation of tileable volumetric textures in the Unity Editor. Choose from available noise types, edit noise properties, perform channel packing and export as 3D/2D textures.
 
 <p align="center">
-  <img width="100%" src="https://github.com/eldnach/noisekit/blob/main/.github/images/NoiseKit.gif?raw=true" alt="NoiseComposition">
+  <img width="100%" src="https://github.com/eldnach/noisekit/blob/main/.github/images/NoiseKitExample.gif?raw=true" alt="NoiseComposition">
 </p>
 
 ## Requirements
-NoiseKit is supported in Unity 2021 LTS and later. Compute shaders support is required.
+NoiseKit is supported in Unity 2021 LTS and later. Compute shader support is required.
  
 ## Setup
 1. In the Unity Editor, go to `Window > Package Manager`
@@ -33,7 +33,7 @@ The following noise types are currently supported:
 `Export`: set the exported texture's precision (8/16 bit per channel), resolution and file path.  
 
 <p align="left">
-  <img width="40%" src="https://github.com/eldnach/noisekit/blob/main/.github/images/Controls.png?raw=true" alt="NoiseControls">
+  <img width="40%" src="https://github.com/eldnach/noisekit/blob/main/.github/images/NoiseKitControls.png?raw=true" alt="NoiseControls">
 </p>
 
 Additional noise types are pending.
