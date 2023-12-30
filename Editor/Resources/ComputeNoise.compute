@@ -17,7 +17,7 @@ float4 _res;
 void NoiseKernel2D (uint3 id : SV_DispatchThreadID) 
 { 
 float2 uv = id.xy / _res.xy; 
-float Noise_0 = valueNoise2D(uv * 4, float2(_propsBuffer0[0], _propsBuffer0[0] / 2.71828), float2(4, 4), _curveBuffer0[0], _curveBuffer0[1], _curveBuffer0[2]);
+float Noise_0 = fractalPerlinNoise2D(uv * 4, float2(_propsBuffer0[0], _propsBuffer0[0] / 2.71828), _propsBuffer0[1], _propsBuffer0[2], _propsBuffer0[3], _propsBuffer0[4], _propsBuffer0[5], float2(4,4), 0.4, _curveBuffer0[0], _curveBuffer0[1], _curveBuffer0[2]);
 float r = Noise_0;
 float g = Noise_0;
 float b = Noise_0;
@@ -27,7 +27,7 @@ _outputTex2D[id.xy] = float4(r, g, b, a);}
 void NoiseKernel3D (uint3 id : SV_DispatchThreadID) 
 { 
 float3 uv = id.xyz / _res.xyz; 
-float Noise_0 = valueNoise3D(uv * 4, float3(_propsBuffer0[0], _propsBuffer0[0] / 2.71828, _propsBuffer0[0] * 5.71828), float3(4, 4, 4), _curveBuffer0[0], _curveBuffer0[1], _curveBuffer0[2]);
+float Noise_0 = fractalPerlinNoise3D(uv * 4, float3(_propsBuffer0[0], _propsBuffer0[0] / 2.71828, _propsBuffer0[0] * 5.71828), _propsBuffer0[1], _propsBuffer0[2], _propsBuffer0[3], _propsBuffer0[4], _propsBuffer0[5], float3(4,4,4), 0.4, _curveBuffer0[0], _curveBuffer0[1], _curveBuffer0[2]);
 float r = Noise_0;
 float g = Noise_0;
 float b = Noise_0;

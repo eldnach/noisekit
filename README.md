@@ -3,7 +3,7 @@
 Procedural generation of tileable volumetric textures in the Unity Editor. Choose from available noise types, edit noise properties, perform channel packing and export as 3D/2D textures.
 
 <p align="center">
-  <img width="100%" src="https://github.com/eldnach/noisekit/blob/main/.github/images/NoiseKitExample.gif?raw=true" alt="NoiseComposition">
+  <img width="100%" src="https://github.com/eldnach/noisekit/blob/main/.github/images/NoiseKitExample_Fractal.gif?raw=true" alt="NoiseComposition">
 </p>
 
 ## Requirements
