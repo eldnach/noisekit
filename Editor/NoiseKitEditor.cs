@@ -631,39 +631,46 @@ public class NoiseKitEditor : EditorWindow
             UpdateCanvas();
         }
     }
-    private void UpdateRes(PointerUpEvent evnt, List<TextField> inputRes)
+    private void UpdateRenderTargetResolution()
     {
-        resX = Int32.Parse(inputRes[0].value);
+        resX = Int32.Parse(InputResFields[0].value);
         if (resX > 8)
         {
-            if (resX % 8 != 0) { resX = (int)(Mathf.Floor((float)resX / 8.0f) * 8.0f); inputRes[0].value = resX.ToString(); } 
-        } else { resX = 8; inputRes[0].value = resX.ToString(); }
+            if (resX % 8 != 0) { resX = (int)(Mathf.Floor((float)resX / 8.0f) * 8.0f); InputResFields[0].value = resX.ToString(); }
+        }
+        else { resX = 8; InputResFields[0].value = resX.ToString(); }
 
-        resY = Int32.Parse(inputRes[1].value);
+        resY = Int32.Parse(InputResFields[1].value);
         if (resY > 8)
         {
-            if (resY % 8 != 0) { resY = (int)(Mathf.Floor((float)resY / 8.0f) * 8.0f); inputRes[1].value = resY.ToString(); }
+            if (resY % 8 != 0) { resY = (int)(Mathf.Floor((float)resY / 8.0f) * 8.0f); InputResFields[1].value = resY.ToString(); }
         }
-        else { resY = 8; inputRes[1].value = resY.ToString(); }
+        else { resY = 8; InputResFields[1].value = resY.ToString(); }
 
-        if(NoiseMode.index == 1)
+        if (NoiseMode.index == 1)
         {
-            resZ = Int32.Parse(inputRes[2].value);
+            resZ = Int32.Parse(InputResFields[2].value);
             if (resZ > 8)
             {
-                if (resZ % 8 != 0) { resZ = (int)(Mathf.Floor((float)resZ / 8.0f) * 8.0f); inputRes[2].value = resZ.ToString(); }
+                if (resZ % 8 != 0) { resZ = (int)(Mathf.Floor((float)resZ / 8.0f) * 8.0f); InputResFields[2].value = resZ.ToString(); }
             }
-            else { resZ = 8; inputRes[2].value = resZ.ToString(); }
-        } else
+            else { resZ = 8; InputResFields[2].value = resZ.ToString(); }
+        }
+        else
         {
             resZ = 1;
         }
+    }
+    private void UpdateRes(PointerUpEvent evnt, List<TextField> inputRes)
+    {
+        UpdateRenderTargetResolution();
         canvasRT = new RenderTexture(resX, resY, resZ, rtFormat, colorSpace);
         ng.UpdateRT(resX, resY, resZ, rtFormat, colorSpace);
         ng.SetupCompute(resX, resY, resZ);
         ng.DispatchCompute();
         UpdateCanvas();
     }
+
     private void GenerateShader()
     {
         string src = "";
@@ -903,6 +910,13 @@ public class NoiseKitEditor : EditorWindow
     }
     private void SaveTex(PointerUpEvent cursorReleaseEvent, TextField input)
     {
+        UpdateRenderTargetResolution();
+        //canvasRT = new RenderTexture(resX, resY, resZ, rtFormat, colorSpace);
+        ng.UpdateRT(resX, resY, resZ, rtFormat, colorSpace);
+        ng.SetupCompute(resX, resY, resZ);
+        ng.DispatchCompute();
+        //UpdateCanvas();
+
         RenderTexture rt = ng.GetTex();
         bool usingLinearSpace;
         if (colorSpace == RenderTextureReadWrite.sRGB) { usingLinearSpace = false; } else 
@@ -963,6 +977,7 @@ public class NoiseKitEditor : EditorWindow
                     texRead3D = new Texture3D(width, height, depth, format, 0);
                     texRead3D.SetPixelData(data, 0);
                     texRead3D.Apply();
+
                     string path = input.text;
                     AssetDatabase.CreateAsset(texRead3D, "Assets/" + path + ".asset");
                     AssetDatabase.SaveAssetIfDirty(texRead3D);
@@ -971,6 +986,7 @@ public class NoiseKitEditor : EditorWindow
                     AssetDatabase.Refresh();
                     Label log = Messages[0].Q<Label>("MessageLabel");
                     log.text = "NoiseKit: saved noise texture to " + path;
+
                 });
             } else
             {

@@ -78,6 +78,7 @@ Shader "Unlit/PreviewShaderVoumetric"
                     {
                         float4 sampl = _MainTex.Sample(sampler_MainTex, rayPos * float3(_MainTex_ST.x, _MainTex_ST.y, 1.0) + float3(_MainTex_ST.z, _MainTex_ST.w, 0.0) + float3(_Time.x * 5.0 , 0.0, 0.0));
                         sampl = min(sampl, float4(1.0, 1.0, 1.0, 1.0));
+                        sampl = max(sampl, float4(0.0, 0.0, 0.0, 0.0));
                         sampl.a *= _Alpha;
                         a = abs(length(rayPos - float3(0.0, 0.0, 0.0)));
                         a = smoothstep(0.0, 0.49, a);
